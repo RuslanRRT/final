@@ -1,0 +1,277 @@
+{% extends 'main/base.html' %}
+{% load static %}
+
+{% block title %}Inventory | ERP System{% endblock %}
+
+{% block header_title %}Inventory Management{% endblock %}
+
+{% block content %}
+<!-- Inventory Management Actions -->
+<div class="table-container">
+    <div class="table-header">
+        <h3 class="table-title">Inventory Records</h3>
+        <div class="table-actions">
+            <button class="btn btn-primary" id="addInventoryBtn">Add Inventory</button>
+            <button class="btn btn-outline" id="exportInventoryBtn">
+                <i class="fas fa-download"></i> Export
+            </button>
+        </div>
+    </div>
+    
+    <!-- Filter Options -->
+    <div class="filter-options">
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Supplier</label>
+                <select class="form-control" id="supplierFilter">
+                    <option value="">All Suppliers</option>
+                    {% for supplier in suppliers %}
+                    <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Product Category</label>
+                <select class="form-control" id="categoryFilter">
+                    <option value="">All Categories</option>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}">{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Date Range</label>
+                <select class="form-control" id="dateFilter">
+                    <option value="all">All Time</option>
+                    <option value="today">Today</option>
+                    <option value="this_week">This Week</option>
+                    <option value="this_month" selected>This Month</option>
+                    <option value="last_month">Last Month</option>
+                    <option value="custom">Custom Range</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">&nbsp;</label>
+                <button class="btn btn-outline form-control" id="applyFilters">Apply Filters</button>
+            </div>
+        </div>
+        
+        <!-- Custom Date Range (initially hidden) -->
+        <div class="form-row" id="customDateRange" style="display: none;">
+            <div class="form-group">
+                <label class="form-label">Start Date</label>
+                <input type="date" class="form-control" id="startDate">
+            </div>
+            <div class="form-group">
+                <label class="form-label">End Date</label>
+                <input type="date" class="form-control" id="endDate">
+            </div>
+        </div>
+    </div>
+    
+    <!-- Inventory Table -->
+    <table>
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Category</th>
+                <th>Supplier</th>
+                <th>Quantity</th>
+                <th>Unit Price</th>
+                <th>Total Value</th>
+                <th>Date Received</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for inventory in inventories %}
+            <tr>
+                <td>{{ inventory.product.name }}</td>
+                <td>{{ inventory.product.category.name }}</td>
+                <td>{{ inventory.supplier.name }}</td>
+                <td>{{ inventory.quantity }}</td>
+                <td>${{ inventory.unit_price }}</td>
+                <td>${{ inventory.total_value }}</td>
+                <td>{{ inventory.date_received|date:"M d, Y H:i" }}</td>
+                <td>
+                    <a href="{% url 'view_inventory' inventory.id %}" class="btn btn-outline btn-sm">View</a>
+                    <a href="{% url 'delete_inventory' inventory.id %}" class="btn btn-danger btn-sm">Delete</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" style="text-align: center;">No inventory records found</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <!-- Summary -->
+    <div class="inventory-summary">
+        <div class="summary-item">
+            <span class="summary-label">Total Products:</span>
+            <span class="summary-value">{{ total_products }}</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Total Items:</span>
+            <span class="summary-value">{{ total_items }}</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Total Value:</span>
+            <span class="summary-value">${{ total_value }}</span>
+        </div>
+    </div>
+    
+    <!-- Pagination -->
+    <div class="pagination">
+        <span class="step-links">
+            {% if inventories.has_previous %}
+                <a href="?page=1">&laquo; first</a>
+                <a href="?page={{ inventories.previous_page_number }}">previous</a>
+            {% endif %}
+
+            <span class="current">
+                Page {{ inventories.number }} of {{ inventories.paginator.num_pages }}
+            </span>
+
+            {% if inventories.has_next %}
+                <a href="?page={{ inventories.next_page_number }}">next</a>
+                <a href="?page={{ inventories.paginator.num_pages }}">last &raquo;</a>
+            {% endif %}
+        </span>
+    </div>
+</div>
+
+<!-- Add Inventory Modal -->
+<div class="modal" id="inventoryModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add Inventory</h3>
+            <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="inventoryForm" method="post" action="{% url 'add_inventory' %}">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label class="form-label">Product</label>
+                    <select name="product" class="form-control" required>
+                        <option value="">Select Product</option>
+                        {% for product in all_products %}
+                        <option value="{{ product.id }}">{{ product.name }} (Current Stock: {{ product.stock_quantity }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Supplier</label>
+                    <select name="supplier" class="form-control" required>
+                        <option value="">Select Supplier</option>
+                        {% for supplier in suppliers %}
+                        <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" name="quantity" min="1" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Unit Price</label>
+                        <input type="number" name="unit_price" step="0.01" class="form-control" required>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-outline" id="cancelBtn">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Modal functionality
+    const modal = document.getElementById('inventoryModal');
+    const addBtn = document.getElementById('addInventoryBtn');
+    const closeBtn = document.querySelector('.close');
+    const cancelBtn = document.getElementById('cancelBtn');
+    
+    addBtn.addEventListener('click', function() {
+        modal.style.display = 'block';
+    });
+    
+    closeBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+    });
+    
+    cancelBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+    });
+    
+    window.addEventListener('click', function(event) {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    });
+    
+    // Date range filter
+    const dateFilter = document.getElementById('dateFilter');
+    const customDateRange = document.getElementById('customDateRange');
+    
+    dateFilter.addEventListener('change', function() {
+        if (this.value === 'custom') {
+            customDateRange.style.display = 'flex';
+        } else {
+            customDateRange.style.display = 'none';
+        }
+    });
+    
+    // Apply filters
+    document.getElementById('applyFilters').addEventListener('click', function() {
+        const supplierValue = document.getElementById('supplierFilter').value;
+        const categoryValue = document.getElementById('categoryFilter').value;
+        const dateValue = dateFilter.value;
+        
+        let url = window.location.pathname + '?';
+        
+        if (supplierValue) url += `supplier=${supplierValue}&`;
+        if (categoryValue) url += `category=${categoryValue}&`;
+        
+        if (dateValue === 'custom') {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            if (startDate) url += `start_date=${startDate}&`;
+            if (endDate) url += `end_date=${endDate}&`;
+        } else if (dateValue !== 'all') {
+            url += `date_range=${dateValue}&`;
+        }
+        
+        window.location.href = url;
+    });
+    
+    // Export functionality
+    document.getElementById('exportInventoryBtn').addEventListener('click', function() {
+        const supplierValue = document.getElementById('supplierFilter').value;
+        const categoryValue = document.getElementById('categoryFilter').value;
+        const dateValue = dateFilter.value;
+        
+        let url = '/export/inventory/?';
+        
+        if (supplierValue) url += `supplier=${supplierValue}&`;
+        if (categoryValue) url += `category=${categoryValue}&`;
+        
+        if (dateValue === 'custom') {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            if (startDate) url += `start_date=${startDate}&`;
+            if (endDate) url += `end_date=${endDate}&`;
+        } else if (dateValue !== 'all') {
+            url += `date_range=${dateValue}&`;
+        }
+        
+        window.location.href = url;
+    });
+</script>
+{% endblock %}

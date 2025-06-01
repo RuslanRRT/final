@@ -1,0 +1,235 @@
+{% extends 'main/base.html' %}
+{% load static %}
+
+{% block title %}Employees | ERP System{% endblock %}
+
+{% block header_title %}Employee Management{% endblock %}
+
+{% block content %}
+<!-- Employee Management Actions -->
+<div class="table-container">
+    <div class="table-header">
+        <h3 class="table-title">Employee Directory</h3>
+        <div class="table-actions">
+            <button class="btn btn-primary" id="addEmployeeBtn">Add Employee</button>
+            <button class="btn btn-outline" id="exportEmployeesBtn">
+                <i class="fas fa-download"></i> Export
+            </button>
+        </div>
+    </div>
+    
+    <!-- Employees Table -->
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Position</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th>Date Joined</th>
+                <th>Sales Performance</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for employee in employees %}
+            <tr>
+                <td>{{ employee.name }}</td>
+                <td>{{ employee.position }}</td>
+                <td>{{ employee.phone }}</td>
+                <td>{{ employee.email }}</td>
+                <td>{{ employee.date_joined|date:"M d, Y" }}</td>
+                <td>
+                    <div class="progress-bar">
+                        <div class="progress" style="width: {{ employee.performance_percentage }}%"></div>
+                    </div>
+                    <span class="progress-text">{{ employee.sales_count }} sales</span>
+                </td>
+                <td>
+                    <a href="{% url 'employee_detail' employee.id %}" class="btn btn-outline btn-sm">View</a>
+                    <a href="{% url 'edit_employee' employee.id %}" class="btn btn-outline btn-sm">Edit</a>
+                    <a href="{% url 'delete_employee' employee.id %}" class="btn btn-danger btn-sm">Delete</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" style="text-align: center;">No employees found</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Employee Performance -->
+<div class="chart-card">
+    <div class="chart-header">
+        <h3 class="chart-title">Employee Sales Performance</h3>
+        <div class="chart-actions">
+            <button class="time-filter active" data-period="this_month">This Month</button>
+            <button class="time-filter" data-period="last_month">Last Month</button>
+            <button class="time-filter" data-period="this_year">This Year</button>
+        </div>
+    </div>
+    <div class="chart-container">
+        <canvas id="employeePerformanceChart"></canvas>
+    </div>
+</div>
+
+<!-- Add Employee Modal -->
+<div class="modal" id="employeeModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add New Employee</h3>
+            <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="employeeForm" method="post" action="{% url 'add_employee' %}">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" name="name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Position</label>
+                    <input type="text" name="position" class="form-control" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" name="phone" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" class="form-control" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Create User Account</label>
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="createUser" name="create_user">
+                        <label for="createUser">Create user login for this employee</label>
+                    </div>
+                </div>
+                <div id="userFields" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Username</label>
+                            <input type="text" name="username" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Password</label>
+                            <input type="password" name="password" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save Employee</button>
+                    <button type="button" class="btn btn-outline" id="cancelBtn">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Modal functionality
+    const modal = document.getElementById('employeeModal');
+    const addBtn = document.getElementById('addEmployeeBtn');
+    const closeBtn = document.querySelector('.close');
+    const cancelBtn = document.getElementById('cancelBtn');
+    
+    addBtn.addEventListener('click', function() {
+        modal.style.display = 'block';
+    });
+    
+    closeBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+    });
+    
+    cancelBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+    });
+    
+    window.addEventListener('click', function(event) {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    });
+    
+    // Toggle user fields
+    document.getElementById('createUser').addEventListener('change', function() {
+        const userFields = document.getElementById('userFields');
+        if (this.checked) {
+            userFields.style.display = 'block';
+        } else {
+            userFields.style.display = 'none';
+        }
+    });
+    
+    // Export functionality
+    document.getElementById('exportEmployeesBtn').addEventListener('click', function() {
+        window.location.href = '/export/employees/';
+    });
+    
+    // Employee Performance Chart
+    const performanceCtx = document.getElementById('employeePerformanceChart').getContext('2d');
+    const performanceChart = new Chart(performanceCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ employee_names|safe }},
+            datasets: [{
+                label: 'Sales Count',
+                data: {{ employee_sales|safe }},
+                backgroundColor: 'rgba(52, 152, 219, 0.8)',
+                borderColor: 'rgba(52, 152, 219, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+    
+    // Time filter functionality
+    document.querySelectorAll('.time-filter').forEach(button => {
+        button.addEventListener('click', function() {
+            // Remove active class from all buttons
+            document.querySelectorAll('.time-filter').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Add active class to clicked button
+            this.classList.add('active');
+            
+            // Get selected period
+            const period = this.dataset.period;
+            
+            // Fetch data for selected period
+            fetch(`/api/employee-performance/?period=${period}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Update chart data
+                    performanceChart.data.labels = data.labels;
+                    performanceChart.data.datasets[0].data = data.values;
+                    performanceChart.update();
+                });
+        });
+    });
+</script>
+{% endblock %}

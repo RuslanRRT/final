@@ -1,0 +1,268 @@
+{% extends 'main/base.html' %}
+{% load static %}
+
+{% block title %}Dashboard | ERP System{% endblock %}
+
+{% block header_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Dashboard Cards -->
+<div class="dashboard-cards">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">otal Sales</h3>
+            <div class="card-icon primary">
+                <i class="fas fa-dollar-sign"></i>
+            </div>
+        </div>
+        <div class="card-value">{{ total_sales_amount }}</div>
+        <div class="card-label">Total revenue</div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Products</h3>
+            <div class="card-icon success">
+                <i class="fas fa-box"></i>
+            </div>
+        </div>
+        <div class="card-value">{{ total_products }}</div>
+        <div class="card-label">Total products</div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Low Stock</h3>
+            <div class="card-icon warning">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+        </div>
+        <div class="card-value">{{ low_stock_count }}</div>
+        <div class="card-label">Products with low stock</div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Employees</h3>
+            <div class="card-icon danger">
+                <i class="fas fa-users"></i>
+            </div>
+        </div>
+        <div class="card-value">{{ total_employees }}</div>
+        <div class="card-label">Active employees</div>
+    </div>
+</div>
+
+<!-- Charts -->
+<div class="charts-container">
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3 class="chart-title">Sales Analytics</h3>
+            <div class="chart-actions">
+                <button class="time-filter active" data-period="daily">Daily</button>
+                <button class="time-filter" data-period="weekly">Weekly</button>
+                <button class="time-filter" data-period="monthly">Monthly</button>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="salesChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3 class="chart-title">Top Categories</h3>
+        </div>
+        <div class="chart-container">
+            <canvas id="categoriesChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Sales -->
+<div class="table-container">
+    <div class="table-header">
+        <h3 class="table-title">Recent Sales</h3>
+        <div class="table-actions">
+            <button class="btn btn-primary" id="newSaleBtn">New Sale</button>
+            <button class="btn btn-outline" id="exportSalesBtn">
+                <i class="fas fa-download"></i> Export
+            </button>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Employee</th>
+                <th>Date</th>
+                <th>Quantity</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sale in recent_sales %}
+            <tr>
+                <td>{{ sale.product.name }}</td>
+                <td>{{ sale.employee.name }}</td>
+                <td>{{ sale.date_time|date:"M d, Y H:i" }}</td>
+                <td>{{ sale.quantity }}</td>
+                <td>${{ sale.price }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" style="text-align: center;">No recent sales</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Low Stock Alert -->
+<div class="table-container">
+    <div class="table-header">
+        <h3 class="table-title">Low Stock Alert</h3>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Category</th>
+                <th>Current Stock</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product in low_stock_products %}
+            <tr>
+                <td>{{ product.name }}</td>
+                <td>{{ product.category.name }}</td>
+                <td>{{ product.stock_quantity }}</td>
+                <td>
+                    <span class="status {% if product.stock_quantity == 0 %}status-danger{% else %}status-warning{% endif %}">
+                        {% if product.stock_quantity == 0 %}Out of Stock{% else %}Low Stock{% endif %}
+                    </span>
+                </td>
+                <td>
+                    <a href="{% url 'add_inventory' %}" class="btn btn-secondary btn-sm">Add Stock</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" style="text-align: center;">No low stock products</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Sales Chart
+    const salesCtx = document.getElementById('salesChart').getContext('2d');
+    const salesChart = new Chart(salesCtx, {
+        type: 'line',
+        data: {
+            labels: {{ sales_dates|safe }},
+            datasets: [{
+                label: 'Sales',
+                data: {{ sales_data|safe }},
+                backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                borderColor: 'rgba(52, 152, 219, 1)',
+                borderWidth: 2,
+                tension: 0.4,
+                pointBackgroundColor: 'rgba(52, 152, 219, 1)'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    // Categories Chart
+    const categoriesCtx = document.getElementById('categoriesChart').getContext('2d');
+    const categoriesChart = new Chart(categoriesCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ category_names|safe }},
+            datasets: [{
+                data: {{ category_data|safe }},
+                backgroundColor: [
+                    'rgba(52, 152, 219, 0.8)',
+                    'rgba(46, 204, 113, 0.8)',
+                    'rgba(155, 89, 182, 0.8)',
+                    'rgba(52, 73, 94, 0.8)',
+                    'rgba(241, 196, 15, 0.8)'
+                ],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+
+    // Time filter functionality
+    document.querySelectorAll('.time-filter').forEach(button => {
+        button.addEventListener('click', function() {
+            // Remove active class from all buttons
+            document.querySelectorAll('.time-filter').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Add active class to clicked button
+            this.classList.add('active');
+            
+            // Get selected period
+            const period = this.dataset.period;
+            
+            // Fetch data for selected period
+            fetch(`/api/sales-data/?period=${period}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Update chart data
+                    salesChart.data.labels = data.labels;
+                    salesChart.data.datasets[0].data = data.values;
+                    salesChart.update();
+                });
+        });
+    });
+
+    // Export functionality
+    document.getElementById('exportSalesBtn').addEventListener('click', function() {
+        window.location.href = '/export/sales/';
+    });
+
+    // New Sale button
+    document.getElementById('newSaleBtn').addEventListener('click', function() {
+        window.location.href = '{% url "add_sale" %}';
+    });
+</script>
+{% endblock %}

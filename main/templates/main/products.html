@@ -1,0 +1,381 @@
+{% extends 'main/base.html' %}
+{% load static %}
+
+{% block title %}Products | ERP System{% endblock %}
+
+{% block header_title %}Products Management{% endblock %}
+
+{% block content %}
+<!-- Product Management Actions -->
+<div class="table-container">
+    <div class="table-header">
+        <h3 class="table-title">Products List</h3>
+        <div class="table-actions">
+            <button class="btn btn-primary" id="addProductBtn">Add Product</button>
+            <button class="btn btn-outline" id="exportProductsBtn">
+                <i class="fas fa-download"></i> Export
+            </button>
+        </div>
+    </div>
+    
+    <!-- Filter Options -->
+    <div class="filter-options">
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Category</label>
+                <select class="form-control" id="categoryFilter">
+                    <option value="">All Categories</option>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}" {% if request.GET.category == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Stock Status</label>
+                <select class="form-control" id="stockFilter">
+                    <option value="">All</option>
+                    <option value="in_stock" {% if request.GET.stock == 'in_stock' %}selected{% endif %}>In Stock</option>
+                    <option value="low_stock" {% if request.GET.stock == 'low_stock' %}selected{% endif %}>Low Stock</option>
+                    <option value="out_of_stock" {% if request.GET.stock == 'out_of_stock' %}selected{% endif %}>Out of Stock</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">&nbsp;</label>
+                <button class="btn btn-outline form-control" id="applyFilters">Apply Filters</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Products Table -->
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Size</th>
+                <th>Color</th>
+                <th>Price</th>
+                <th>Stock</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product in products %}
+            <tr>
+                <td>{{ product.name }}</td>
+                <td>{{ product.category.name }}</td>
+                <td>{{ product.size|default:"-" }}</td>
+                <td>{{ product.color|default:"-" }}</td>
+                <td>${{ product.price }}</td>
+                <td>{{ product.stock_quantity }}</td>
+                <td>
+                    {% if product.stock_quantity == 0 %}
+                    <span class="status status-danger">Out of Stock</span>
+                    {% elif product.stock_quantity < 10 %}
+                    <span class="status status-warning">Low Stock</span>
+                    {% else %}
+                    <span class="status status-success">In Stock</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{% url 'edit_product' product.id %}" class="btn btn-outline btn-sm">Edit</a>
+                    <button class="btn btn-danger btn-sm delete-product-btn" data-product-id="{{ product.id }}" data-delete-url="{% url 'delete_product' product.id %}">Delete</button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" style="text-align: center;">No products found</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <!-- Pagination -->
+    {% if products.has_other_pages %}
+    <div class="pagination">
+        <span class="step-links">
+            {% if products.has_previous %}
+                <a href="?page=1{{ request.GET.urlencode|cut:'page=' }}">&laquo; first</a>
+                <a href="?page={{ products.previous_page_number }}{{ request.GET.urlencode|cut:'page=' }}">previous</a>
+            {% endif %}
+
+            <span class="current">
+                Page {{ products.number }} of {{ products.paginator.num_pages }}
+            </span>
+
+            {% if products.has_next %}
+                <a href="?page={{ products.next_page_number }}{{ request.GET.urlencode|cut:'page=' }}">next</a>
+                <a href="?page={{ products.paginator.num_pages }}{{ request.GET.urlencode|cut:'page=' }}">last &raquo;</a>
+            {% endif %}
+        </span>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add Product Modal -->
+<div class="modal" id="productModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add New Product</h3>
+            <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="productForm" method="post" action="{% url 'add_product' %}">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" name="name" class="form-control" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Category</label>
+                        <select name="category" class="form-control" required>
+                            <option value="">Select Category</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Price</label>
+                        <input type="number" name="price" step="0.01" class="form-control" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Size</label>
+                        <input type="text" name="size" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Color</label>
+                        <input type="text" name="color" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Initial Stock</label>
+                    <input type="number" name="stock_quantity" class="form-control" required>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save Product</button>
+                    <button type="button" class="btn btn-outline" id="cancelBtn">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Modal CSS -->
+<style>
+.modal {
+    display: none; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 1001; /* Sit on top */
+    left: 0;
+    top: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    overflow: auto; /* Enable scroll if needed */
+    background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 10% auto; /* 10% from the top and centered */
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%; /* Could be more or less, depending on screen size */
+    max-width: 600px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2),0 6px 20px 0 rgba(0,0,0,0.19);
+}
+
+.dark-mode .modal-content {
+    background-color: var(--dark-color);
+    border-color: #555;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px;
+}
+
+.modal-header h3 {
+    margin: 0;
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.close:hover,
+.close:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.dark-mode .close {
+    color: #ccc;
+}
+
+.dark-mode .close:hover,
+.dark-mode .close:focus {
+    color: white;
+}
+
+.modal-body {
+    padding-top: 10px;
+}
+
+.form-actions {
+    margin-top: 20px;
+    text-align: right;
+}
+
+.form-actions button {
+    margin-left: 10px;
+}
+
+.pagination {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.pagination a, .pagination .current {
+    margin: 0 5px;
+    padding: 5px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    text-decoration: none;
+    color: var(--primary-color);
+}
+
+.pagination a:hover {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.pagination .current {
+    font-weight: bold;
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.filter-options {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: rgba(0,0,0,0.02);
+    border-radius: 4px;
+}
+
+.dark-mode .filter-options {
+    background-color: rgba(255,255,255,0.05);
+}
+
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Modal functionality
+    const modal = document.getElementById('productModal');
+    const addBtn = document.getElementById('addProductBtn');
+    const closeBtn = modal.querySelector('.close');
+    const cancelBtn = document.getElementById('cancelBtn');
+    
+    addBtn.addEventListener('click', function() {
+        modal.style.display = 'block';
+    });
+    
+    closeBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+    });
+    
+    cancelBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+    });
+    
+    window.addEventListener('click', function(event) {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    });
+    
+    // Filter functionality
+    document.getElementById('applyFilters').addEventListener('click', function() {
+        const categoryId = document.getElementById('categoryFilter').value;
+        const stockStatus = document.getElementById('stockFilter').value;
+        
+        let url = window.location.pathname + '?';
+        const params = [];
+        if (categoryId) {
+            params.push(`category=${categoryId}`);
+        }
+        if (stockStatus) {
+            params.push(`stock=${stockStatus}`);
+        }
+        // Preserve other existing query parameters (like page)
+        const searchParams = new URLSearchParams(window.location.search);
+        searchParams.forEach((value, key) => {
+            if (key !== 'category' && key !== 'stock' && key !== 'page') {
+                params.push(`${key}=${value}`);
+            }
+        });
+
+        window.location.href = url + params.join('&');
+    });
+    
+    // Export functionality
+    document.getElementById('exportProductsBtn').addEventListener('click', function() {
+        // Add current filters to export URL if needed
+        window.location.href = '{% url "export_products" %}'; // Make sure this URL exists
+    });
+
+    // Delete Product Functionality
+    const deleteButtons = document.querySelectorAll('.delete-product-btn');
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    deleteButtons.forEach(button => {
+        button.addEventListener('click', function(event) {
+            event.preventDefault(); // Prevent default if it was an <a> tag
+            const productId = this.dataset.productId;
+            const deleteUrl = this.dataset.deleteUrl;
+            
+            if (confirm(`Are you sure you want to delete product ID ${productId}?`)) {
+                fetch(deleteUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json' // Optional: depends on view
+                    },
+                    // body: JSON.stringify({ id: productId }) // Optional: if view needs body
+                })
+                .then(response => {
+                    if (response.ok) {
+                        // Reload the page or remove the row from the table
+                        window.location.reload(); 
+                    } else {
+                        alert('Failed to delete product. Please try again.');
+                        console.error('Delete failed:', response);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error during delete:', error);
+                    alert('An error occurred while deleting the product.');
+                });
+            }
+        });
+    });
+
+</script>
+{% endblock %}
+

@@ -1,0 +1,331 @@
+{% extends 'main/base.html' %}
+{% load static %}
+
+{% block title %}Sales | ERP System{% endblock %}
+
+{% block header_title %}Sales Management{% endblock %}
+
+{% block content %}
+<!-- Sales Management Actions -->
+<div class="table-container">
+    <div class="table-header">
+        <h3 class="table-title">Sales Transactions</h3>
+        <div class="table-actions">
+            <button class="btn btn-primary" id="addSaleBtn">New Sale</button>
+            <button class="btn btn-outline" id="exportSalesBtn">
+                <i class="fas fa-download"></i> Export
+            </button>
+        </div>
+    </div>
+    
+    <!-- Filter Options -->
+    <div class="filter-options">
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Date Range</label>
+                <select class="form-control" id="dateFilter">
+                    <option value="today">Today</option>
+                    <option value="yesterday">Yesterday</option>
+                    <option value="this_week">This Week</option>
+                    <option value="last_week">Last Week</option>
+                    <option value="this_month" selected>This Month</option>
+                    <option value="last_month">Last Month</option>
+                    <option value="custom">Custom Range</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Employee</label>
+                <select class="form-control" id="employeeFilter">
+                    <option value="">All Employees</option>
+                    {% for employee in employees %}
+                    <option value="{{ employee.id }}">{{ employee.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Product Category</label>
+                <select class="form-control" id="categoryFilter">
+                    <option value="">All Categories</option>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}">{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">&nbsp;</label>
+                <button class="btn btn-outline form-control" id="applyFilters">Apply Filters</button>
+            </div>
+        </div>
+        
+        <!-- Custom Date Range (initially hidden) -->
+        <div class="form-row" id="customDateRange" style="display: none;">
+            <div class="form-group">
+                <label class="form-label">Start Date</label>
+                <input type="date" class="form-control" id="startDate">
+            </div>
+            <div class="form-group">
+                <label class="form-label">End Date</label>
+                <input type="date" class="form-control" id="endDate">
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sales Table -->
+    <table>
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Category</th>
+                <th>Employee</th>
+                <th>Date & Time</th>
+                <th>Quantity</th>
+                <th>Price</th>
+                <th>Total</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sale in sales %}
+            <tr>
+                <td>{{ sale.product.name }}</td>
+                <td>{{ sale.product.category.name }}</td>
+                <td>{{ sale.employee.name }}</td>
+                <td>{{ sale.date_time|date:"M d, Y H:i" }}</td>
+                <td>{{ sale.quantity }}</td>
+                <td>${{ sale.price }}</td>
+                <td>${{ sale.total_price }}</td>
+                <td>
+                    <a href="{% url 'view_sale' sale.id %}" class="btn btn-outline btn-sm">View</a>
+                    <a href="{% url 'delete_sale' sale.id %}" class="btn btn-danger btn-sm">Delete</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" style="text-align: center;">No sales found</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <!-- Summary -->
+    <div class="sales-summary">
+        <div class="summary-item">
+            <span class="summary-label">Total Sales:</span>
+            <span class="summary-value">{{ total_sales }}</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Total Revenue:</span>
+            <span class="summary-value">${{ total_revenue }}</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Average Sale:</span>
+            <span class="summary-value">${{ average_sale }}</span>
+        </div>
+    </div>
+    
+    <!-- Pagination -->
+    <div class="pagination">
+        <span class="step-links">
+            {% if sales.has_previous %}
+                <a href="?page=1">&laquo; first</a>
+                <a href="?page={{ sales.previous_page_number }}">previous</a>
+            {% endif %}
+
+            <span class="current">
+                Page {{ sales.number }} of {{ sales.paginator.num_pages }}
+            </span>
+
+            {% if sales.has_next %}
+                <a href="?page={{ sales.next_page_number }}">next</a>
+                <a href="?page={{ sales.paginator.num_pages }}">last &raquo;</a>
+            {% endif %}
+        </span>
+    </div>
+</div>
+
+<!-- Add Sale Modal -->
+<div class="modal" id="saleModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>New Sale</h3>
+            <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="saleForm" method="post" action="{% url 'add_sale' %}">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label class="form-label">Product</label>
+                    <select name="product" class="form-control" id="productSelect" required>
+                        <option value="">Select Product</option>
+                        {% for product in all_products %}
+                        <option value="{{ product.id }}" data-price="{{ product.price }}" data-stock="{{ product.stock_quantity }}">
+                            {{ product.name }} - ${{ product.price }} ({{ product.stock_quantity }} in stock)
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" name="quantity" id="quantityInput" min="1" class="form-control" required>
+                        <small class="stock-warning" id="stockWarning" style="display: none; color: red;">
+                            Warning: Quantity exceeds available stock!
+                        </small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Price</label>
+                        <input type="number" name="price" id="priceInput" step="0.01" class="form-control" required readonly>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Employee</label>
+                    <select name="employee" class="form-control" required>
+                        <option value="">Select Employee</option>
+                        {% for employee in employees %}
+                        <option value="{{ employee.id }}">{{ employee.name }} ({{ employee.position }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Total</label>
+                    <input type="text" id="totalDisplay" class="form-control" readonly>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Complete Sale</button>
+                    <button type="button" class="btn btn-outline" id="cancelBtn">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Modal functionality
+    const modal = document.getElementById('saleModal');
+    const addBtn = document.getElementById('addSaleBtn');
+    const closeBtn = document.querySelector('.close');
+    const cancelBtn = document.getElementById('cancelBtn');
+    
+    addBtn.addEventListener('click', function() {
+        modal.style.display = 'block';
+    });
+    
+    closeBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+    });
+    
+    cancelBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+    });
+    
+    window.addEventListener('click', function(event) {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    });
+    
+    // Product selection and price calculation
+    const productSelect = document.getElementById('productSelect');
+    const quantityInput = document.getElementById('quantityInput');
+    const priceInput = document.getElementById('priceInput');
+    const totalDisplay = document.getElementById('totalDisplay');
+    const stockWarning = document.getElementById('stockWarning');
+    
+    productSelect.addEventListener('change', updatePrice);
+    quantityInput.addEventListener('input', updateTotal);
+    
+    function updatePrice() {
+        const selectedOption = productSelect.options[productSelect.selectedIndex];
+        if (selectedOption.value) {
+            const price = parseFloat(selectedOption.dataset.price);
+            priceInput.value = price.toFixed(2);
+            updateTotal();
+        } else {
+            priceInput.value = '';
+            totalDisplay.value = '';
+        }
+    }
+    
+    function updateTotal() {
+        const selectedOption = productSelect.options[productSelect.selectedIndex];
+        if (selectedOption.value && quantityInput.value) {
+            const price = parseFloat(priceInput.value);
+            const quantity = parseInt(quantityInput.value);
+            const total = price * quantity;
+            totalDisplay.value = '$' + total.toFixed(2);
+            
+            // Check stock availability
+            const availableStock = parseInt(selectedOption.dataset.stock);
+            if (quantity > availableStock) {
+                stockWarning.style.display = 'block';
+            } else {
+                stockWarning.style.display = 'none';
+            }
+        } else {
+            totalDisplay.value = '';
+            stockWarning.style.display = 'none';
+        }
+    }
+    
+    // Date range filter
+    const dateFilter = document.getElementById('dateFilter');
+    const customDateRange = document.getElementById('customDateRange');
+    
+    dateFilter.addEventListener('change', function() {
+        if (this.value === 'custom') {
+            customDateRange.style.display = 'flex';
+        } else {
+            customDateRange.style.display = 'none';
+        }
+    });
+    
+    // Apply filters
+    document.getElementById('applyFilters').addEventListener('click', function() {
+        const dateValue = dateFilter.value;
+        const employeeId = document.getElementById('employeeFilter').value;
+        const categoryId = document.getElementById('categoryFilter').value;
+        
+        let url = window.location.pathname + '?';
+        
+        if (dateValue === 'custom') {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            if (startDate) url += `start_date=${startDate}&`;
+            if (endDate) url += `end_date=${endDate}&`;
+        } else {
+            url += `date_range=${dateValue}&`;
+        }
+        
+        if (employeeId) url += `employee=${employeeId}&`;
+        if (categoryId) url += `category=${categoryId}&`;
+        
+        window.location.href = url;
+    });
+    
+    // Export functionality
+    document.getElementById('exportSalesBtn').addEventListener('click', function() {
+        // Get current filter parameters
+        const dateValue = dateFilter.value;
+        const employeeId = document.getElementById('employeeFilter').value;
+        const categoryId = document.getElementById('categoryFilter').value;
+        
+        let url = '/export/sales/?';
+        
+        if (dateValue === 'custom') {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            if (startDate) url += `start_date=${startDate}&`;
+            if (endDate) url += `end_date=${endDate}&`;
+        } else {
+            url += `date_range=${dateValue}&`;
+        }
+        
+        if (employeeId) url += `employee=${employeeId}&`;
+        if (categoryId) url += `category=${categoryId}&`;
+        
+        window.location.href = url;
+    });
+</script>
+{% endblock %}

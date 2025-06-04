@@ -1,4 +1,4 @@
-/* DASHBOARD */
+/* DASHBOARD
 .dashboard td, .dashboard th {
     word-break: break-word;
 }
@@ -17,7 +17,7 @@
 }
 
 /* RECENT ACTIONS MODULE */
-
+/* 
 .module ul.actionlist {
     margin-left: 0;
 }
@@ -26,4 +26,4 @@ ul.actionlist li {
     list-style-type: none;
     overflow: hidden;
     text-overflow: ellipsis;
-}
+} */ */
